@@ -1,0 +1,9 @@
+- url: "https://www.nbs.rs/static/nbs_site/gen/english/30/kurs/Indikativni_Kurs_20.html"
+  select: "th.kurs_e"
+  from: "EUR"
+  to: "RSD"
+
+- url: https://finance.yahoo.com/quote/BTC-EUR/"
+  select: "fin-streamer[data-symbol='BTC-EUR']"
+  from: "BTC"
+  to: "EUR"
