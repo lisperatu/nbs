@@ -38,7 +38,7 @@ P <timestamp> <base_currency> <quote> <quote_currency>
 ```
 
 
-To directly insert the output into a Ledger file from Emacs, add the following function to your Emacs configuration:
+5. If using Emacs and mod-ledger, to directly insert the output into a Ledger file from Emacs, add the following function to your Emacs configuration:
 
 ```elisp
 (defun insert-nbs-output ()
