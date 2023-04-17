@@ -32,6 +32,9 @@ pub enum CurrencyError {
     #[error("Scrapper selector error {0}")]
     ScraperSelector(String),
 
+    #[error("Scrapper error {0}")]
+    Scraper(String),
+
     #[error("Home directory not found")]
     HomeDirNotFound,
 }
@@ -83,7 +86,7 @@ fn get_currency(param: QuoteParams) -> Result<String, CurrencyError> {
         .select(&selector)
         .map(|v| v.inner_html())
         .next()
-        .unwrap_or("".to_string());
+        .ok_or(CurrencyError::Scraper(format!("Failed to extract currency data {}", param.select)))?;
     let now = Utc::now().format("%Y/%m/%d %H:%M:%S").to_string();
     let out = format!("P {} {} {} {}", now, param.from, currency, param.to);
     Ok(out)
