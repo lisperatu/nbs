@@ -56,13 +56,9 @@ struct QuoteParams {
 /// * A `Result` containing a `Vec` of `QuoteParams` if successful, or a `CurrencyError` if an error occurs.
 fn read_quote_params(path: &PathBuf) -> Result<Vec<QuoteParams>, CurrencyError> {
     let mut file = File::open(path)?;
-    //.map_err(|_| format!("Failed to open file {:?}", path))?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
-    //.map_err(|_| format!("Failed to read config file {:?}", path))?;
-
     let params: Vec<QuoteParams> = serde_yaml::from_str(&content)?;
-    //.map_err(|_| format!("Failed to parse config file {:?}", path))?;
 
     Ok(params)
 }
