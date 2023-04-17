@@ -6,36 +6,34 @@
 
 #![doc = include_str!("../Readme.md")]
 
-
-
 use chrono::prelude::*;
 use home::home_dir;
 use rayon::prelude::*;
-use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use thiserror::Error;
 
 use serde::*;
 use serde_yaml;
-use std::fmt;
 
 /// A custom error type for handling currency-related errors.
-#[derive(Debug)]
-struct CurrencyError(String);
+#[derive(Error, Debug)]
+pub enum CurrencyError {
+    #[error("File error {0}")]
+    Io(#[from] std::io::Error),
 
-impl fmt::Display for CurrencyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+    #[error("YAML deserialization error {0}")]
+    SerdeYaml(#[from] serde_yaml::Error),
 
-impl Error for CurrencyError {}
+    #[error("HTTP request error {0}")]
+    Reqwest(#[from] reqwest::Error),
 
-impl From<String> for CurrencyError {
-    fn from(str: String) -> Self {
-        Self(str)
-    }
+    #[error("Scrapper selector error {0}")]
+    ScraperSelector(String),
+
+    #[error("Home directory not found")]
+    HomeDirNotFound,
 }
 
 /// A struct representing a set of quote parameters.
@@ -57,13 +55,14 @@ struct QuoteParams {
 ///
 /// * A `Result` containing a `Vec` of `QuoteParams` if successful, or a `CurrencyError` if an error occurs.
 fn read_quote_params(path: &PathBuf) -> Result<Vec<QuoteParams>, CurrencyError> {
-    let mut file = File::open(path).map_err(|_| format!("Failed to open file {:?}", path))?;
+    let mut file = File::open(path)?;
+    //.map_err(|_| format!("Failed to open file {:?}", path))?;
     let mut content = String::new();
-    file.read_to_string(&mut content)
-        .map_err(|_| format!("Failed to read config file {:?}", path))?;
+    file.read_to_string(&mut content)?;
+    //.map_err(|_| format!("Failed to read config file {:?}", path))?;
 
-    let params: Vec<QuoteParams> = serde_yaml::from_str(&content)
-        .map_err(|_| format!("Failed to parse config file {:?}", path))?;
+    let params: Vec<QuoteParams> = serde_yaml::from_str(&content)?;
+    //.map_err(|_| format!("Failed to parse config file {:?}", path))?;
 
     Ok(params)
 }
@@ -78,22 +77,11 @@ fn read_quote_params(path: &PathBuf) -> Result<Vec<QuoteParams>, CurrencyError> 
 ///
 /// * A `Result` containing a `String` with the formatted quote if successful, or a `CurrencyError` if an error occurs.
 fn get_currency(param: QuoteParams) -> Result<String, CurrencyError> {
-    let res = reqwest::blocking::get(param.url.as_str())
-        .map_err(|_| format!("Cannot read url {}", param.url))?;
-    let content = res
-        .text()
-        .map_err(|_| format!("Cannot parse html from url {}", param.url))?;
+    let res = reqwest::blocking::get(param.url.as_str())?;
+    let content = res.text()?;
     let page = scraper::Html::parse_document(&content);
-
-    // I couldn't use simple result? syntax here, I couldn't follow why
-    let selector = if let Ok(selector) = scraper::Selector::parse(&param.select) {
-        selector
-    } else {
-        return Err(CurrencyError(format!(
-            "Cannot parse html selector {}",
-            param.select
-        )));
-    };
+    let selector = scraper::Selector::parse(&param.select)
+        .map_err(|e| CurrencyError::ScraperSelector(format!("Selector parse error: {}", e)))?;
 
     let currency = page
         .select(&selector)
@@ -109,8 +97,8 @@ fn get_currency(param: QuoteParams) -> Result<String, CurrencyError> {
 ///
 /// It reads the configuration file, retrieves the currency quotes in parallel,
 /// and prints the results in a format suitable for Ledger.
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut path = home_dir().ok_or("Cannot find home dir")?;
+fn main() -> Result<(), CurrencyError> {
+    let mut path = home_dir().ok_or(CurrencyError::HomeDirNotFound)?;
     path.push(".quoteparams");
     let params = read_quote_params(&path)?;
 
